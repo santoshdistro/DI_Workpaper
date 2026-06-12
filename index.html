@@ -100,7 +100,7 @@
       <div class="sub">AI drafts. The maker concludes. Nothing enters the file without a tick.</div>
     </div>
     <div class="rail" id="rail"></div>
-    <div class="foot">Standalone demo — sanitized data only. Production runs inside the firm's own cloud tenant.</div>
+    <div class="foot">Standalone demo — sanitized data only. Production runs inside the firm's own cloud tenant.<br><br><span style="font-family:var(--mono);color:rgba(255,255,255,.6)">BUILD v1.1</span></div>
   </div>
 
   <div class="main">
@@ -115,10 +115,10 @@
         drafted as inquiry-only and flagged, never invented.</p>
 
       <div class="keybox">
-        <div class="lab">API key</div>
+        <div class="lab">Anthropic API key</div>
         <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off">
-        <div class="hint">Create one → API Keys. Held in memory for this session only —
-          never saved to disk.</div>
+        <div class="hint">Create one at console.anthropic.com → API Keys. Held in memory for this session only —
+          never saved to disk, never sent anywhere except Anthropic's API.</div>
       </div>
 
       <div class="upl" id="uTemplate"><div class="row"><div>
@@ -237,7 +237,7 @@ function parseClaudeJSON(text) {
 
 async function callClaude(messages) {
   const key = $("apiKey").value.trim();
-  if (!key) throw new Error("Please paste your API key at the top of the intake screen first.");
+  if (!key) throw new Error("Please paste your Anthropic API key at the top of the intake screen first.");
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -770,6 +770,7 @@ $("btnAcceptAll").addEventListener("click", () => {
 $("btnBack2").addEventListener("click", () => goStep(1));
 $("btnSign").addEventListener("click", () => {
   S.signedAt = new Date();
+  ["btnDlWp", "btnDlEv", "btnDlRec"].forEach((id) => { $(id).disabled = false; });
   $("signSummary").textContent = `Maker sign-off recorded ${S.signedAt.toLocaleString()}. ${acceptedCount()} of ${Object.keys(S.decisions).length} items accepted.` +
     (S.evidence.length === 0 ? " Implementation drafted as inquiry-only (limitation flagged — no evidence was provided)." : "");
   $("dlEvid").style.display = S.evidence.length ? "flex" : "none";
