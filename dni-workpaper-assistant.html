@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D&I Workpaper Assistant — Pilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  :root{
+    --ink:#16243A; --paper:#FBFBF8; --card:#FFFFFF; --text:#2C3543; --dim:#6B7585;
+    --line:#DCE0E6; --green:#1E6E5C; --greensoft:#E8F2EE; --amber:#B7791F; --ambersoft:#FAF3E3;
+    --red:#A33B3B; --redsoft:#F8ECEC;
+    --mono:'IBM Plex Mono',ui-monospace,monospace; --sans:'IBM Plex Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--text);min-height:100vh}
+  .layout{display:flex;min-height:100vh}
+  .side{background:var(--ink);width:270px;min-width:270px;padding:24px;display:flex;flex-direction:column;gap:32px}
+  .side .tag{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--green);font-weight:600;text-transform:uppercase}
+  .side h1{color:#fff;font-size:19px;font-weight:700;line-height:1.25;margin:6px 0 0}
+  .side .sub{color:rgba(255,255,255,.55);font-size:12.5px;margin-top:6px;line-height:1.5}
+  .side .foot{margin-top:auto;font-size:11.5px;color:rgba(255,255,255,.4);line-height:1.5}
+  .rail .s{display:flex;align-items:flex-start;gap:12px}
+  .rail .n{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;font-weight:600;border:1.5px solid rgba(255,255,255,.25);color:rgba(255,255,255,.45)}
+  .rail .bar{width:1.5px;height:24px;background:rgba(255,255,255,.2);margin:0 auto}
+  .rail .t{padding-top:4px;font-size:13.5px;color:rgba(255,255,255,.55)}
+  .rail .s.active .n{background:#fff;color:var(--ink);border-color:#fff}
+  .rail .s.active .t{color:#fff;font-weight:600}
+  .rail .s.done .n{background:var(--green);color:#fff;border-color:var(--green)}
+  .rail .s.done + div .bar{background:var(--green)}
+  .main{flex:1;padding:40px;max-width:900px}
+  h2{font-size:24px;font-weight:700;margin:0 0 4px}
+  .lead{color:var(--dim);font-size:14px;margin:0 0 22px;line-height:1.55}
+  .banner{border-radius:8px;padding:10px 14px;font-size:13.5px;margin-bottom:18px;display:none}
+  .banner.err{background:var(--redsoft);border:1px solid var(--red);color:var(--red)}
+  .banner.busy{background:var(--ambersoft);border:1px solid var(--amber);color:var(--amber);font-weight:500}
+  .banner.ok{background:var(--greensoft);border:1px solid var(--green);color:var(--text)}
+  .upl{border:1.5px dashed var(--line);background:var(--card);border-radius:10px;padding:14px 16px;cursor:pointer;margin-bottom:12px}
+  .upl.has{border-color:var(--green);background:var(--greensoft)}
+  .upl .lab{font-weight:600;font-size:14px}
+  .upl .req{color:var(--amber);font-size:12px;font-weight:500}
+  .upl .opt{color:var(--dim);font-size:12px}
+  .upl .hint{font-size:12.5px;color:var(--dim);margin-top:2px}
+  .upl .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .tick{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;border:1.5px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:14px;font-weight:600}
+  .tick.on{border-color:var(--green);background:var(--green);color:#fff}
+  .field-label{font-weight:600;font-size:14px;margin:14px 0 6px}
+  .field-label .opt{color:var(--dim);font-weight:400}
+  select,textarea,input[type=password]{width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--line);font-size:14px;font-family:var(--sans);background:#fff;color:var(--text)}
+  textarea{resize:vertical;font-size:13.5px;line-height:1.5}
+  select:focus,textarea:focus,input:focus{outline:2px solid var(--green);outline-offset:1px}
+  button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .btn{font-family:var(--sans);font-size:14.5px;font-weight:600;padding:11px 22px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--text);cursor:pointer}
+  .btn.primary{border:none;background:var(--ink);color:#fff}
+  .btn.small{font-size:13px;padding:7px 14px}
+  .btn:disabled{background:#C8CDD5;color:#fff;border:none;cursor:not-allowed}
+  .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px;align-items:center}
+  .schema-box{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .schema-row{display:flex;align-items:center;gap:16px;padding:12px 16px;border-top:1px solid var(--line)}
+  .schema-row:first-child{border-top:none}
+  .cellref{font-family:var(--mono);font-size:12.5px;font-weight:600;background:var(--greensoft);color:var(--green);padding:3px 8px;border-radius:5px;min-width:44px;text-align:center}
+  .cellref.ev{background:var(--ambersoft);color:var(--amber)}
+  .schema-row .l{font-size:14px;font-weight:600;flex:1}
+  .schema-row .e{font-size:12.5px;color:var(--dim)}
+  .card{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+  .card.acc{border-color:var(--green)} .card.rej{border-color:var(--red);opacity:.6}
+  .card .head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .card .head .l{font-size:13.5px;font-weight:600;flex:1}
+  .card textarea{margin-top:8px;font-size:13.5px}
+  .card .src{font-size:12px;color:var(--dim);margin-top:6px;font-style:italic}
+  .dbtn{width:30px;height:30px;border-radius:7px;border:1.5px solid var(--line);background:#fff;font-weight:700;cursor:pointer}
+  .dbtn.acc{color:var(--green)} .dbtn.acc.sel{background:var(--green);border-color:var(--green);color:#fff}
+  .dbtn.rej{color:var(--red)} .dbtn.rej.sel{background:var(--red);border-color:var(--red);color:#fff}
+  .counter{font-family:var(--mono);font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:16px}
+  .dl{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px;max-width:540px}
+  .dl .t{font-weight:600;font-size:14.5px}
+  .dl .f{font-size:12.5px;color:var(--dim);font-family:var(--mono)}
+  .note{margin-top:24px;background:var(--greensoft);border:1px solid var(--green);border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.6;max-width:540px}
+  .evlist{margin-top:8px;font-size:12.5px;color:var(--dim)}
+  .evlist div{padding:3px 0;display:flex;gap:8px;align-items:center}
+  .evlist .id{font-family:var(--mono);color:var(--green);font-weight:600}
+  .section-head{font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 10px;letter-spacing:.3px;text-transform:uppercase}
+  .step{display:none}
+  .step.show{display:block}
+  .keybox{background:var(--card);border:1.5px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:18px}
+  .keybox .lab{font-weight:600;font-size:14px;margin-bottom:6px}
+  .keybox .hint{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.5}
+  .warn-inline{font-size:12.5px;color:var(--amber);margin-top:8px}
+  @media (max-width:760px){.layout{flex-direction:column}.side{width:100%;min-width:0}.main{padding:20px}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="side">
+    <div>
+      <div class="tag">Pilot · Internal</div>
+      <h1>D&amp;I Workpaper Assistant</h1>
+      <div class="sub">AI drafts. The maker concludes. Nothing enters the file without a tick.</div>
+    </div>
+    <div class="rail" id="rail"></div>
+    <div class="foot">Standalone demo — sanitized data only. Production runs inside the firm's own cloud tenant.</div>
+  </div>
+
+  <div class="main">
+    <div id="bErr" class="banner err"></div>
+    <div id="bBusy" class="banner busy"></div>
+
+    <!-- STEP 0 -->
+    <div class="step" id="step0">
+      <h2>Test intake</h2>
+      <p class="lead">Upload the template and walkthrough source. The export writes accepted values into your
+        <b>original file</b> — all formatting stays untouched. Evidence is optional: without it, implementation is
+        drafted as inquiry-only and flagged, never invented.</p>
+
+      <div class="keybox">
+        <div class="lab">API key</div>
+        <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off">
+        <div class="hint">Create one at console.anthropic.com → API Keys. Held in memory for this session only —
+          never saved to disk, never sent anywhere except Anthropic's API.</div>
+      </div>
+
+      <div class="upl" id="uTemplate"><div class="row"><div>
+        <div class="lab">Workpaper template <span class="req">required</span></div>
+        <div class="hint" id="hTemplate">Excel (.xlsx) — your firm's template</div>
+      </div><span class="tick" id="tTemplate"></span></div>
+      <input type="file" id="fTemplate" accept=".xlsx" hidden></div>
+
+      <div class="upl" id="uWalk"><div class="row"><div>
+        <div class="lab">Walkthrough / inquiry notes <span class="req">required</span></div>
+        <div class="hint" id="hWalk">Transcript or notes — .txt, .docx or .xlsx</div>
+      </div><span class="tick" id="tWalk"></span></div>
+      <input type="file" id="fWalk" accept=".txt,.docx,.xlsx" hidden></div>
+
+      <div class="upl" id="uPolicy"><div class="row"><div>
+        <div class="lab">Policy / SOP <span class="req">required</span></div>
+        <div class="hint" id="hPolicy">.txt, .docx or .xlsx</div>
+      </div><span class="tick" id="tPolicy"></span></div>
+      <input type="file" id="fPolicy" accept=".txt,.docx,.xlsx" hidden></div>
+
+      <div class="upl" id="uEvid"><div class="row"><div>
+        <div class="lab">Evidence files <span class="opt">optional</span></div>
+        <div class="hint" id="hEvid">Tickets, listings, screenshots — .xlsx, .docx, .txt, .png, .jpg (multiple)</div>
+      </div><span class="tick" id="tEvid"></span></div>
+      <input type="file" id="fEvid" accept=".xlsx,.xls,.docx,.txt,.png,.jpg,.jpeg,.webp,image/*" multiple hidden></div>
+
+      <div class="evlist" id="evList"></div>
+
+      <div class="field-label">Prompt preset</div>
+      <select id="preset">
+        <option value="">No preset — general ITGC</option>
+        <option value="Logical access control. Focus on request initiation, approval, provisioning roles, standard vs privileged access, and remediation timelines.">Access management / provisioning / UAR</option>
+        <option value="Change management control. Focus on approval before deployment, segregation between developer and deployer, and testing evidence.">Change management</option>
+        <option value="Backup control. Focus on schedule, success monitoring, restoration testing, and offsite/immutable storage.">Backup &amp; recovery</option>
+        <option value="Incident management control. Focus on logging, triage timelines, escalation, and post-incident review.">Incident management</option>
+      </select>
+      <div class="field-label">Additional context <span class="opt">(optional)</span></div>
+      <textarea id="extraCtx" rows="2" placeholder="Scope notes, known exceptions, naming conventions…"></textarea>
+
+      <div class="actions">
+        <button class="btn primary" id="btnAnalyze" disabled>Analyze template →</button>
+      </div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="step" id="step1">
+      <h2>Template schema</h2>
+      <p class="lead">The tool interviewed your template. Confirm it understood the structure — guidance
+        paragraphs are skipped; only fillable cells are listed.</p>
+      <div class="schema-box" id="schemaBox"></div>
+      <div class="actions">
+        <button class="btn" id="btnBack1">← Back</button>
+        <button class="btn primary" id="btnGenerate">Confirm schema &amp; generate draft →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step" id="step2">
+      <h2>Maker review</h2>
+      <p class="lead">Tick to accept, cross to reject, edit anything. Only ticked entries reach the files.</p>
+      <div class="counter" id="counter"></div>
+      <div id="fillCards"></div>
+      <div class="actions">
+        <button class="btn small" id="btnAcceptAll">Accept all</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="btnBack2">← Back</button>
+        <button class="btn primary" id="btnSign" disabled>Sign off as maker →</button>
+      </div>
+      <div class="warn-inline" id="signWarn">Every entry needs a tick or a cross before sign-off.</div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step" id="step3">
+      <h2>Signed off — ready for review</h2>
+      <p class="lead" id="signSummary"></p>
+      <div id="bExport" class="banner ok"></div>
+      <div class="dl"><div><div class="t">Filled workpaper (original formatting preserved)</div><div class="f">DI_Workpaper_Filled.xlsx</div></div><button class="btn primary small" id="btnDlWp">Download</button></div>
+      <div class="dl" id="dlEvid" style="display:none"><div><div class="t">Evidence workbook (annotated)</div><div class="f">Evidence_Workbook_Annotated.xlsx</div></div><button class="btn primary small" id="btnDlEv">Download</button></div>
+      <div class="dl"><div><div class="t">Preparation &amp; evidence record</div><div class="f">Preparation_Record.doc</div></div><button class="btn primary small" id="btnDlRec">Download</button></div>
+      <div class="note"><b>How the export works:</b> the tool edits your original file's internal XML directly —
+        values are written into the accepted cells and every other byte (styles, borders, widths, merges, other
+        tabs) is carried over untouched.</div>
+      <div class="actions"><button class="btn" id="btnReset">Start a new control test</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ====================================================================
+// GenAI MODEL CONFIGURATION — the single place the model is defined.
+// Every AI call (template schema inference, drafting, evidence vision)
+// uses this model through the Anthropic API. In the production build,
+// swap this endpoint for Azure OpenAI or AWS Bedrock inside the firm
+// tenant.
+const CLAUDE_MODEL = "claude-sonnet-4-6";
+// ====================================================================
+
+// ---------- state ----------
+const S = {
+  step: 0, templateBuf: null, workbook: null, sheetName: "", templateName: "",
+  walkText: "", walkName: "", policyText: "", policyName: "",
+  evidence: [], schema: [], fills: [], annots: [],
+  decisions: {}, edits: {}, annotEdits: {}, signedAt: null,
+};
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- generic helpers ----------
+function parseClaudeJSON(text) {
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  const a = cleaned.indexOf("["), b = cleaned.lastIndexOf("]");
+  if (a === -1 || b === -1) throw new Error("No JSON array in AI response");
+  return JSON.parse(cleaned.slice(a, b + 1));
+}
+
+async function callClaude(messages) {
+  const key = $("apiKey").value.trim();
+  if (!key) throw new Error("Please paste your Anthropic API key at the top of the intake screen first.");
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 2000, messages }),
+  });
+  const data = await response.json();
+  if (data.error) {
+    const msg = data.error.message || "API error";
+    if (data.error.type === "authentication_error") throw new Error("API key rejected — check it was copied fully (starts sk-ant-).");
+    if (msg.includes("rate_limit") || msg.includes("exceeded")) throw new Error("API rate limit hit — wait a minute and retry.");
+    throw new Error(msg);
+  }
+  return data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+}
+
+function sheetToCellList(ws, capLen = 220) {
+  const cells = [];
+  if (!ws || !ws["!ref"]) return cells;
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (cell && cell.v !== undefined && String(cell.v).trim() !== "") {
+        let v = String(cell.v);
+        if (v.length > capLen) v = v.slice(0, capLen) + "…";
+        cells.push({ addr, value: v });
+      }
+    }
+  }
+  return cells;
+}
+
+const readBuf = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("read failed")); r.readAsArrayBuffer(f); });
+const readTextF = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("read failed")); r.readAsText(f); });
+const readB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = () => rej(new Error("read failed")); r.readAsDataURL(f); });
+
+function downloadBlob(blobOrText, filename, mime) {
+  const blob = blobOrText instanceof Blob ? blobOrText : new Blob([blobOrText], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+const safeSheetName = (s) => s.replace(/[\[\]:*?/\\]/g, " ").slice(0, 31);
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// ---------- format-preserving xlsx writer (zip + XML surgery) ----------
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+const crc32 = (b) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+
+async function inflateRaw(bytes) {
+  const ds = new DecompressionStream("deflate-raw");
+  const stream = new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function parseZip(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  let eocd = -1;
+  for (let i = dv.byteLength - 22; i >= 0; i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error("not a valid xlsx (zip directory missing)");
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const entries = [], td = new TextDecoder();
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new Error("bad central directory");
+    const method = dv.getUint16(off + 10, true), time = dv.getUint16(off + 12, true), date = dv.getUint16(off + 14, true);
+    const crc = dv.getUint32(off + 16, true), csize = dv.getUint32(off + 20, true), usize = dv.getUint32(off + 24, true);
+    const nameLen = dv.getUint16(off + 28, true), extraLen = dv.getUint16(off + 30, true), commentLen = dv.getUint16(off + 32, true);
+    const localOff = dv.getUint32(off + 42, true);
+    const name = td.decode(u8.subarray(off + 46, off + 46 + nameLen));
+    const lnameLen = dv.getUint16(localOff + 26, true), lextraLen = dv.getUint16(localOff + 28, true);
+    const dataStart = localOff + 30 + lnameLen + lextraLen;
+    entries.push({ name, method, time, date, crc, csize, usize, data: u8.subarray(dataStart, dataStart + csize) });
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+function buildZip(entries) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const nameB = enc.encode(e.name);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true);
+    lh.setUint16(8, e.method, true); lh.setUint16(10, e.time, true); lh.setUint16(12, e.date, true);
+    lh.setUint32(14, e.crc, true); lh.setUint32(18, e.csize, true); lh.setUint32(22, e.usize, true);
+    lh.setUint16(26, nameB.length, true);
+    parts.push(new Uint8Array(lh.buffer), nameB, e.data);
+    central.push({ e, nameB, localOffset: offset });
+    offset += 30 + nameB.length + e.data.length;
+  }
+  const cdStart = offset; let cdSize = 0;
+  for (const { e, nameB, localOffset } of central) {
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true);
+    cd.setUint16(10, e.method, true); cd.setUint16(12, e.time, true); cd.setUint16(14, e.date, true);
+    cd.setUint32(16, e.crc, true); cd.setUint32(20, e.csize, true); cd.setUint32(24, e.usize, true);
+    cd.setUint16(28, nameB.length, true); cd.setUint32(42, localOffset, true);
+    parts.push(new Uint8Array(cd.buffer), nameB);
+    cdSize += 46 + nameB.length;
+  }
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true);
+  eo.setUint16(8, central.length, true); eo.setUint16(10, central.length, true);
+  eo.setUint32(12, cdSize, true); eo.setUint32(16, cdStart, true);
+  parts.push(new Uint8Array(eo.buffer));
+  return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+const xmlEsc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const xmlUnesc = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const colToIdx = (ref) => { let n = 0; for (const ch of ref.match(/^[A-Z]+/)[0]) n = n * 26 + (ch.charCodeAt(0) - 64); return n; };
+const idxToCol = (n) => { let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+const rowOf = (ref) => parseInt(ref.match(/\d+$/)[0], 10);
+
+async function decEntry(e) { return new TextDecoder().decode(e.method === 8 ? await inflateRaw(e.data) : e.data); }
+
+async function findSheetPath(entries, wantName) {
+  const get = (n) => entries.find((x) => x.name === n);
+  const wbE = get("xl/workbook.xml");
+  if (!wbE) throw new Error("workbook.xml missing");
+  const wbXml = await decEntry(wbE);
+  const tags = [...wbXml.matchAll(/<sheet\b[^>]*\/>/g)].map((m) => m[0]);
+  if (!tags.length) throw new Error("no sheets in workbook.xml");
+  let rid = null;
+  for (const tag of tags) {
+    const nameM = tag.match(/\bname="([^"]*)"/);
+    const ridM = tag.match(/\br:id="([^"]+)"/);
+    if (!ridM) continue;
+    if (rid === null) rid = ridM[1];
+    if (nameM && xmlUnesc(nameM[1]) === wantName) { rid = ridM[1]; break; }
+  }
+  if (!rid) throw new Error("sheet relationship id not found");
+  const relsXml = await decEntry(get("xl/_rels/workbook.xml.rels"));
+  const relTag = [...relsXml.matchAll(/<Relationship\b[^>]*\/>/g)].map((m) => m[0])
+    .find((t) => new RegExp(`\\bId="${rid}"`).test(t));
+  if (!relTag) throw new Error("worksheet relationship not found");
+  let target = relTag.match(/\bTarget="([^"]+)"/)[1];
+  return target.startsWith("/") ? target.slice(1) : "xl/" + target;
+}
+
+function fillSheetXml(xml, cellValues) {
+  const byRow = {};
+  for (const [ref, val] of Object.entries(cellValues)) {
+    const r = rowOf(ref);
+    (byRow[r] = byRow[r] || []).push({ ref, val, col: colToIdx(ref) });
+  }
+  const cellXml = (ref, val, sAttr) =>
+    `<c r="${ref}"${sAttr ? ` s="${sAttr}"` : ""} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(val)}</t></is></c>`;
+
+  const processRow = (rowStr, items) => {
+    if (/\/>\s*$/.test(rowStr)) rowStr = rowStr.replace(/\s*\/>\s*$/, "></row>");
+    const m = rowStr.match(/^(<row\b[^>]*>)([\s\S]*)(<\/row>)$/);
+    if (!m) throw new Error("row parse failed");
+    let body = m[2];
+    for (const it of [...items].sort((a, b) => a.col - b.col)) {
+      const cellRe = new RegExp(`<c\\b[^>]*\\br="${it.ref}"[^>]*(?:/>|>[\\s\\S]*?</c>)`);
+      const cm = body.match(cellRe);
+      if (cm) {
+        const sM = cm[0].match(/\bs="(\d+)"/);
+        const replacement = cellXml(it.ref, it.val, sM ? sM[1] : null);
+        body = body.replace(cellRe, () => replacement);
+      } else {
+        let insertAt = body.length;
+        const re = /<c\b[^>]*\br="([A-Z]+\d+)"/g;
+        let mm;
+        while ((mm = re.exec(body))) if (colToIdx(mm[1]) > it.col) { insertAt = mm.index; break; }
+        body = body.slice(0, insertAt) + cellXml(it.ref, it.val, null) + body.slice(insertAt);
+      }
+    }
+    return m[1] + body + m[3];
+  };
+
+  const sd = xml.match(/(<sheetData[^>]*>)([\s\S]*?)(<\/sheetData>)/);
+  const selfClosed = !sd && /<sheetData\s*\/>/.test(xml);
+  if (!sd && !selfClosed) throw new Error("sheetData not found");
+  const inner = sd ? sd[2] : "";
+
+  const rowPieces = [];
+  const rowRe = /<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g;
+  let mm;
+  while ((mm = rowRe.exec(inner))) {
+    const rM = mm[0].match(/\br="(\d+)"/);
+    rowPieces.push({ start: mm.index, end: mm.index + mm[0].length, str: mm[0], rNum: rM ? parseInt(rM[1], 10) : null });
+  }
+
+  const pending = { ...byRow };
+  const pendingNums = Object.keys(pending).map(Number).sort((a, b) => a - b);
+  const newRow = (rn) => `<row r="${rn}">${pending[rn].sort((a, b) => a.col - b.col).map((it) => cellXml(it.ref, it.val, null)).join("")}</row>`;
+
+  let out = "", cursor = 0;
+  for (const rp of rowPieces) {
+    out += inner.slice(cursor, rp.start);
+    while (pendingNums.length && rp.rNum !== null && pendingNums[0] < rp.rNum) {
+      const rn = pendingNums.shift();
+      out += newRow(rn);
+      delete pending[rn];
+    }
+    if (rp.rNum !== null && pending[rp.rNum]) {
+      out += processRow(rp.str, pending[rp.rNum]);
+      pendingNums.splice(pendingNums.indexOf(rp.rNum), 1);
+      delete pending[rp.rNum];
+    } else out += rp.str;
+    cursor = rp.end;
+  }
+  out += inner.slice(cursor);
+  while (pendingNums.length) { const rn = pendingNums.shift(); out += newRow(rn); delete pending[rn]; }
+
+  let newXml = sd ? xml.replace(sd[0], () => sd[1] + out + sd[3])
+                  : xml.replace(/<sheetData\s*\/>/, () => `<sheetData>${out}</sheetData>`);
+
+  const dim = newXml.match(/<dimension ref="([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?"\s*\/>/);
+  if (dim) {
+    let c1 = colToIdx(dim[1]), r1 = +dim[2];
+    let c2 = dim[3] ? colToIdx(dim[3]) : c1, r2 = dim[4] ? +dim[4] : r1;
+    for (const ref of Object.keys(cellValues)) {
+      const c = colToIdx(ref), r = rowOf(ref);
+      c1 = Math.min(c1, c); c2 = Math.max(c2, c); r1 = Math.min(r1, r); r2 = Math.max(r2, r);
+    }
+    newXml = newXml.replace(dim[0], () => `<dimension ref="${idxToCol(c1)}${r1}:${idxToCol(c2)}${r2}"/>`);
+  }
+  return newXml;
+}
+
+async function writeIntoOriginal(templateBuf, wantSheetName, cellValues) {
+  const entries = parseZip(templateBuf.slice(0));
+  const path = await findSheetPath(entries, wantSheetName);
+  const sheetE = entries.find((e) => e.name === path);
+  if (!sheetE) throw new Error("worksheet part not found: " + path);
+  const xml = await decEntry(sheetE);
+  const newXml = fillSheetXml(xml, cellValues);
+  const bytes = new TextEncoder().encode(newXml);
+  sheetE.method = 0; sheetE.data = bytes; sheetE.csize = bytes.length; sheetE.usize = bytes.length; sheetE.crc = crc32(bytes);
+  return buildZip(entries);
+}
+
+// ---------- UI plumbing ----------
+const RAIL = ["Intake", "Template schema", "Maker review", "Sign-off & export"];
+function renderRail() {
+  $("rail").innerHTML = RAIL.map((t, i) => {
+    const cls = i < S.step ? "s done" : i === S.step ? "s active" : "s";
+    const n = i < S.step ? "✓" : i + 1;
+    const bar = i < RAIL.length - 1 ? `<div><div class="bar" style="${i < S.step ? "background:var(--green)" : ""}"></div></div>` : "";
+    return `<div class="${cls}"><div style="display:flex;flex-direction:column;align-items:center"><div class="n">${n}</div></div><div class="t">${t}</div></div>${bar ? `<div style="display:flex"><div style="width:28px;display:flex;justify-content:center"><div class="bar" style="${i < S.step ? "background:var(--green)" : ""}"></div></div></div>` : ""}`;
+  }).join("");
+}
+function goStep(n) {
+  S.step = n;
+  for (let i = 0; i < 4; i++) $("step" + i).classList.toggle("show", i === n);
+  renderRail();
+  window.scrollTo(0, 0);
+}
+function setErr(msg) { const b = $("bErr"); b.textContent = msg || ""; b.style.display = msg ? "block" : "none"; }
+function setBusy(msg) {
+  const b = $("bBusy"); b.textContent = msg ? "⏳ " + msg : ""; b.style.display = msg ? "block" : "none";
+  ["btnAnalyze", "btnGenerate", "btnSign", "btnDlWp", "btnDlEv", "btnDlRec"].forEach((id) => { const el = $(id); if (el && msg) el.dataset.wasDisabled = el.disabled ? "1" : ""; if (el) el.disabled = !!msg || el.dataset.wasDisabled === "1"; });
+  if (!msg) refreshIntakeButton();
+}
+
+function refreshIntakeButton() {
+  $("btnAnalyze").disabled = !(S.templateBuf && S.walkText && S.policyText);
+  if (S.step === 2) $("btnSign").disabled = !allDecided();
+}
+
+// ---------- intake ----------
+function wireUpload(boxId, inputId) {
+  $(boxId).addEventListener("click", () => $(inputId).click());
+}
+wireUpload("uTemplate", "fTemplate"); wireUpload("uWalk", "fWalk");
+wireUpload("uPolicy", "fPolicy"); wireUpload("uEvid", "fEvid");
+
+async function extractDoc(file) {
+  const n = file.name.toLowerCase();
+  if (n.endsWith(".docx")) {
+    const buf = await readBuf(file);
+    return (await mammoth.extractRawText({ arrayBuffer: buf })).value;
+  }
+  if (n.endsWith(".xlsx") || n.endsWith(".xls")) {
+    const buf = await readBuf(file);
+    const wb = XLSX.read(buf, { type: "array" });
+    return wb.SheetNames.map((sn) => `[Sheet: ${sn}]\n` + sheetToCellList(wb.Sheets[sn], 300).map((c) => `${c.addr}: ${c.value}`).join("\n")).join("\n\n");
+  }
+  return await readTextF(file);
+}
+
+$("fTemplate").addEventListener("change", async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    setErr("");
+    const buf = await readBuf(file);
+    S.workbook = XLSX.read(buf.slice(0), { type: "array" });
+    S.templateBuf = buf;
+    S.sheetName = S.workbook.SheetNames[0];
+    S.templateName = file.name;
+    $("hTemplate").textContent = file.name;
+    $("uTemplate").classList.add("has"); $("tTemplate").classList.add("on"); $("tTemplate").textContent = "✓";
+  } catch { setErr("Could not read that Excel file. Please upload a valid .xlsx template."); }
+  refreshIntakeButton();
+});
+
+function wireNarrative(inputId, boxId, hintId, tickId, key, nameKey) {
+  $(inputId).addEventListener("change", async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      setErr("");
+      S[key] = await extractDoc(file);
+      S[nameKey] = file.name;
+      $(hintId).textContent = file.name;
+      $(boxId).classList.add("has"); $(tickId).classList.add("on"); $(tickId).textContent = "✓";
+    } catch { setErr("Could not read that document. Use .txt, .docx or .xlsx."); }
+    refreshIntakeButton();
+  });
+}
+wireNarrative("fWalk", "uWalk", "hWalk", "tWalk", "walkText", "walkName");
+wireNarrative("fPolicy", "uPolicy", "hPolicy", "tPolicy", "policyText", "policyName");
+
+$("fEvid").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []); if (!files.length) return;
+  setErr("");
+  try {
+    for (const file of files) {
+      const id = "EV" + (S.evidence.length + 1);
+      setBusy(`Reading evidence ${id}: ${file.name}…`);
+      const isImage = (file.type || "").startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.name);
+      if (isImage) {
+        const supported = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+        let mt = supported.includes(file.type) ? file.type : null;
+        if (!mt) {
+          if (/\.png$/i.test(file.name)) mt = "image/png";
+          else if (/\.jpe?g$/i.test(file.name)) mt = "image/jpeg";
+          else if (/\.webp$/i.test(file.name)) mt = "image/webp";
+          else if (/\.gif$/i.test(file.name)) mt = "image/gif";
+        }
+        if (!mt) throw new Error(`"${file.name}" is an unsupported image format (e.g. HEIC). Convert to PNG or JPG and re-upload.`);
+        const b64 = await readB64(file);
+        const out = await callClaude([{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: mt, data: b64 } },
+          { type: "text", text: "This is an audit evidence screenshot. Extract every visible field and value as plain text lines (Field: Value). Then add one line starting 'Summary:' describing what this document is. Output text only." },
+        ] }]);
+        S.evidence.push({ id, name: file.name, kind: "image", text: out });
+      } else {
+        S.evidence.push({ id, name: file.name, kind: "doc", text: await extractDoc(file) });
+      }
+    }
+    $("hEvid").textContent = `${S.evidence.length} item(s): ${S.evidence.map((x) => x.id).join(", ")}`;
+    $("uEvid").classList.add("has"); $("tEvid").classList.add("on"); $("tEvid").textContent = "✓";
+    $("evList").innerHTML = S.evidence.map((x) =>
+      `<div><span class="id">${x.id}</span><span>${esc(x.name)}</span><span>· ${x.kind === "image" ? "screenshot (AI-read)" : "document"}</span></div>`).join("");
+  } catch (err) { setErr("Evidence reading failed: " + err.message); }
+  finally { setBusy(""); e.target.value = ""; }
+});
+
+// ---------- schema ----------
+$("btnAnalyze").addEventListener("click", async () => {
+  setBusy("Reading template structure and inferring the schema…"); setErr("");
+  try {
+    const cells = sheetToCellList(S.workbook.Sheets[S.sheetName]);
+    const prompt = `You are analyzing an IT audit workpaper Excel template. Some cells contain LABELS or long GUIDANCE text; the preparer fills the EMPTY cell beside (one column right) or below each label.
+
+Non-empty cells (address: content):
+${cells.map((c) => `${c.addr}: ${c.value}`).join("\n")}
+
+Identify up to 14 cells the preparer must FILL. Treat long guidance paragraphs as guidance, not labels. Respond ONLY with a JSON array:
+[{"cell":"B3","label":"Control Risk","expects":"Low/Medium/High with rationale"}]
+"cell" = address of the EMPTY cell to fill. Keep "expects" under 8 words.`;
+    const out = await callClaude([{ role: "user", content: prompt }]);
+    const parsed = parseClaudeJSON(out);
+    if (!parsed.length) throw new Error("No fillable fields identified");
+    S.schema = parsed;
+    $("schemaBox").innerHTML = parsed.map((s) =>
+      `<div class="schema-row"><span class="cellref">${esc(s.cell)}</span><span class="l">${esc(s.label)}</span><span class="e">${esc(s.expects || "")}</span></div>`).join("");
+    goStep(1);
+  } catch (e) { setErr("Template analysis failed: " + e.message + " — try again or simplify the template."); }
+  finally { setBusy(""); }
+});
+$("btnBack1").addEventListener("click", () => goStep(0));
+
+// ---------- generation ----------
+function baseContext() {
+  const presetText = $("preset").value;
+  const extraContext = $("extraCtx").value.trim();
+  const evidenceBlock = S.evidence.length
+    ? S.evidence.map((e) => `[${e.id} — ${e.name}]\n${e.text.slice(0, 1500)}`).join("\n\n")
+    : "NONE PROVIDED";
+  return `You are an IT audit senior preparing a Design & Implementation (D&I) workpaper.
+
+WALKTHROUGH / INQUIRY NOTES:
+${S.walkText.slice(0, 5000)}
+
+POLICY:
+${S.policyText.slice(0, 3000)}
+
+EVIDENCE ITEMS:
+${evidenceBlock}
+
+${presetText ? "FOCUS: " + presetText : ""}${extraContext ? "\nPREPARER CONTEXT: " + extraContext : ""}
+
+STRICT RULES:
+- Design evaluation: base on inquiry/walkthrough; name the role inquired with and list numbered process steps.
+- Implementation evaluation: ONLY reference evidence items that exist above, citing them as [EV1 — filename]. Include specific details (names, dates, roles) from the evidence.
+- If EVIDENCE ITEMS is "NONE PROVIDED": the implementation field MUST state that implementation was assessed through inquiry and walkthrough observation only, that corroborating evidence is yet to be obtained, and flag this as a limitation. NEVER invent evidence, document names, or references.
+- Short fields (risk, level, competency, aggregation): 1-2 sentences. Narrative fields: 3-6 sentences.
+- Note gaps or exceptions honestly; if none, state "No exception noted."`;
+}
+
+$("btnGenerate").addEventListener("click", async () => {
+  setErr("");
+  try {
+    const ctx = baseContext();
+    const batches = chunk(S.schema, 3);
+    const allFills = [];
+    for (let i = 0; i < batches.length; i++) {
+      setBusy(`Drafting fields ${i * 3 + 1}–${Math.min((i + 1) * 3, S.schema.length)} of ${S.schema.length}…`);
+      const b = batches[i];
+      const prompt = `${ctx}
+
+FILL ONLY THESE FIELDS:
+${b.map((s) => `${s.cell} | ${s.label} | ${s.expects}`).join("\n")}
+
+Respond ONLY with a JSON array:
+[{"cell":"B3","value":"...","source":"Inquiry with control owner 21-04-2026"}]
+Keep each "source" under 12 words (cite Inquiry, Policy, or [EVn]).`;
+      const out = await callClaude([{ role: "user", content: prompt }]);
+      allFills.push(...parseClaudeJSON(out));
+    }
+    S.fills = allFills;
+
+    S.annots = [];
+    if (S.evidence.length) {
+      setBusy("Annotating evidence items…");
+      const out = await callClaude([{ role: "user", content: `${ctx}
+
+For EACH evidence item, write an audit annotation (2-3 sentences): what the document is, which control attribute(s) it evidences, and the key fields relied upon (names, dates). Respond ONLY with a JSON array:
+[{"id":"EV1","annotation":"..."}]` }]);
+      const parsed = parseClaudeJSON(out);
+      S.annots = S.evidence.map((e) => ({
+        id: e.id, name: e.name,
+        annotation: (parsed.find((p) => p.id === e.id) || {}).annotation || "Annotation not generated — add manually.",
+      }));
+    }
+
+    S.decisions = {}; S.edits = {}; S.annotEdits = {};
+    S.fills.forEach((f) => (S.decisions[f.cell] = null));
+    S.annots.forEach((a) => (S.decisions["@" + a.id] = null));
+    renderReview();
+    goStep(2);
+  } catch (e) { setErr("Draft generation failed: " + e.message + " — press the button to retry."); }
+  finally { setBusy(""); }
+});
+
+// ---------- review ----------
+const allDecided = () => Object.keys(S.decisions).length > 0 && Object.values(S.decisions).every((v) => v !== null);
+const acceptedCount = () => Object.values(S.decisions).filter((v) => v === true).length;
+
+function renderReview() {
+  const host = $("fillCards");
+  host.innerHTML = "";
+  const mkCard = (key, refLabel, refCls, title, value, source, onEdit) => {
+    const dec = S.decisions[key];
+    const card = document.createElement("div");
+    card.className = "card" + (dec === true ? " acc" : dec === false ? " rej" : "");
+    const head = document.createElement("div");
+    head.className = "head";
+    head.innerHTML = `<span class="cellref ${refCls}">${esc(refLabel)}</span><span class="l">${esc(title)}</span>`;
+    const btns = document.createElement("div");
+    btns.style.display = "flex"; btns.style.gap = "8px";
+    const mk = (sym, cls, val) => {
+      const b = document.createElement("button");
+      b.className = `dbtn ${cls}` + (dec === val ? " sel" : "");
+      b.textContent = sym;
+      b.onclick = () => { S.decisions[key] = val; renderReview(); };
+      return b;
+    };
+    btns.append(mk("✓", "acc", true), mk("✗", "rej", false));
+    head.appendChild(btns);
+    card.appendChild(head);
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.rows = Math.min(6, Math.max(1, Math.ceil(value.length / 90)));
+    ta.oninput = () => onEdit(ta.value);
+    card.appendChild(ta);
+    if (source) {
+      const src = document.createElement("div");
+      src.className = "src"; src.textContent = "Source — " + source;
+      card.appendChild(src);
+    }
+    return card;
+  };
+
+  S.fills.forEach((f) => {
+    const sch = S.schema.find((s) => s.cell === f.cell) || {};
+    host.appendChild(mkCard(f.cell, f.cell, "", sch.label || f.cell,
+      S.edits[f.cell] !== undefined ? S.edits[f.cell] : f.value, f.source || "",
+      (v) => { S.edits[f.cell] = v; }));
+  });
+  if (S.annots.length) {
+    const h = document.createElement("div");
+    h.className = "section-head"; h.textContent = "Evidence annotations";
+    host.appendChild(h);
+    S.annots.forEach((a) => {
+      host.appendChild(mkCard("@" + a.id, a.id, "ev", a.name,
+        S.annotEdits[a.id] !== undefined ? S.annotEdits[a.id] : a.annotation, "",
+        (v) => { S.annotEdits[a.id] = v; }));
+    });
+  }
+  $("counter").textContent = `${acceptedCount()} / ${Object.keys(S.decisions).length} accepted`;
+  $("btnSign").disabled = !allDecided();
+  $("signWarn").style.display = allDecided() ? "none" : "block";
+}
+
+$("btnAcceptAll").addEventListener("click", () => {
+  Object.keys(S.decisions).forEach((k) => (S.decisions[k] = true));
+  renderReview();
+});
+$("btnBack2").addEventListener("click", () => goStep(1));
+$("btnSign").addEventListener("click", () => {
+  S.signedAt = new Date();
+  $("signSummary").textContent = `Maker sign-off recorded ${S.signedAt.toLocaleString()}. ${acceptedCount()} of ${Object.keys(S.decisions).length} items accepted.` +
+    (S.evidence.length === 0 ? " Implementation drafted as inquiry-only (limitation flagged — no evidence was provided)." : "");
+  $("dlEvid").style.display = S.evidence.length ? "flex" : "none";
+  $("bExport").style.display = "none";
+  goStep(3);
+});
+
+// ---------- exports ----------
+$("btnDlWp").addEventListener("click", async () => {
+  setBusy("Writing values into your original template (format-preserving)…");
+  const ok = $("bExport");
+  try {
+    const accepted = {};
+    S.fills.forEach((f) => { if (S.decisions[f.cell]) accepted[f.cell] = S.edits[f.cell] !== undefined ? S.edits[f.cell] : f.value; });
+    const blob = await writeIntoOriginal(S.templateBuf, S.sheetName, accepted);
+    downloadBlob(blob, "DI_Workpaper_Filled.xlsx");
+    ok.textContent = "✓ Exported with original formatting fully preserved — only the accepted cells were written.";
+    ok.style.display = "block";
+  } catch (e) {
+    try {
+      const ws = S.workbook.Sheets[S.sheetName];
+      S.fills.forEach((f) => { if (S.decisions[f.cell]) ws[f.cell] = { t: "s", v: S.edits[f.cell] !== undefined ? S.edits[f.cell] : f.value }; });
+      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      S.fills.forEach((f) => { const dc = XLSX.utils.decode_cell(f.cell); if (dc.r > range.e.r) range.e.r = dc.r; if (dc.c > range.e.c) range.e.c = dc.c; });
+      ws["!ref"] = XLSX.utils.encode_range(range);
+      XLSX.writeFile(S.workbook, "DI_Workpaper_Filled.xlsx");
+      ok.textContent = `Exported via fallback writer — formatting may be simplified (${e.message}).`;
+      ok.style.display = "block";
+    } catch (e2) { setErr("Export failed: " + e2.message); }
+  } finally { setBusy(""); }
+});
+
+$("btnDlEv").addEventListener("click", () => {
+  const wb = XLSX.utils.book_new();
+  const index = [["Evidence Index"], [], ["ID", "Source file", "Type", "Maker decision", "Annotation"]];
+  S.annots.forEach((a) => {
+    index.push([a.id, a.name, (S.evidence.find((e) => e.id === a.id) || {}).kind || "",
+      S.decisions["@" + a.id] ? "✓ Accepted" : "✗ Rejected",
+      S.annotEdits[a.id] !== undefined ? S.annotEdits[a.id] : a.annotation]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(index), "Index");
+  S.evidence.forEach((e) => {
+    const a = S.annots.find((x) => x.id === e.id) || {};
+    const aoa = [[`${e.id} — ${e.name}`], [], ["ANNOTATION:"],
+      [(S.annotEdits[e.id] !== undefined ? S.annotEdits[e.id] : a.annotation) || ""], [],
+      ["EXTRACTED CONTENT:"], ...e.text.split("\n").map((line) => [line])];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), safeSheetName(`${e.id} ${e.name}`));
+  });
+  XLSX.writeFile(wb, "Evidence_Workbook_Annotated.xlsx");
+});
+
+$("btnDlRec").addEventListener("click", () => {
+  const fillRows = S.fills.map((f) => {
+    const dec = S.decisions[f.cell];
+    const sch = S.schema.find((s) => s.cell === f.cell) || {};
+    const val = S.edits[f.cell] !== undefined ? S.edits[f.cell] : f.value;
+    return `<tr><td style="font-family:monospace">${esc(f.cell)}</td><td>${esc(sch.label || "")}</td><td>${dec ? esc(val) : "<i>Not entered</i>"}</td><td>${esc(f.source || "")}</td><td style="text-align:center;color:${dec ? "#1E6E5C" : "#A33B3B"};font-weight:bold">${dec ? "✓" : "✗"}</td></tr>`;
+  }).join("");
+  const annotRows = S.annots.map((a) => {
+    const dec = S.decisions["@" + a.id];
+    const val = S.annotEdits[a.id] !== undefined ? S.annotEdits[a.id] : a.annotation;
+    return `<tr><td style="font-family:monospace">${esc(a.id)}</td><td>${esc(a.name)}</td><td>${dec ? esc(val) : "<i>Rejected</i>"}</td><td style="text-align:center;color:${dec ? "#1E6E5C" : "#A33B3B"};font-weight:bold">${dec ? "✓" : "✗"}</td></tr>`;
+  }).join("");
+  const html = `<html><head><meta charset="utf-8"></head><body style="font-family:Calibri,Arial,sans-serif;color:#2C3543">
+<h1 style="font-size:18pt">D&amp;I Testing — Preparation &amp; Evidence Record</h1>
+<p><b>Workpaper template:</b> ${esc(S.templateName)}<br><b>Walkthrough source:</b> ${esc(S.walkName)}<br><b>Policy:</b> ${esc(S.policyName)}<br>
+<b>Evidence items:</b> ${S.evidence.length || "None — implementation assessed by inquiry only (limitation flagged)"}<br>
+<b>Maker sign-off:</b> ${S.signedAt ? S.signedAt.toLocaleString() : ""}<br>
+<b>Method:</b> AI-assisted draft; every entry dispositioned by the maker (✓ accepted / ✗ rejected) before inclusion.</p>
+<h2 style="font-size:13pt">Workpaper entries</h2>
+<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-size:10pt;width:100%">
+<tr style="background:#16243A;color:#fff"><th>Cell</th><th>Field</th><th>Value entered</th><th>Source</th><th>Maker</th></tr>${fillRows}</table>
+${S.annots.length ? `<h2 style="font-size:13pt">Evidence annotations</h2><table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-size:10pt;width:100%"><tr style="background:#16243A;color:#fff"><th>ID</th><th>File</th><th>Annotation</th><th>Maker</th></tr>${annotRows}</table>` : ""}
+<p style="font-size:9pt;color:#6B7585;margin-top:14pt">Generated by the D&amp;I Workpaper Assistant (pilot demonstration). Pending reviewer sign-off.</p>
+</body></html>`;
+  downloadBlob(html, "Preparation_Record.doc", "application/msword");
+});
+
+$("btnReset").addEventListener("click", () => location.reload());
+
+// ---------- init ----------
+goStep(0);
+refreshIntakeButton();
+</script>
+</body>
+</html>
