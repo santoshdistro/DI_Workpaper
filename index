@@ -117,8 +117,8 @@
       <div class="keybox">
         <div class="lab">API key</div>
         <input type="password" id="apiKey" placeholder="sk-ant-…" autocomplete="off">
-        <div class="hint">Create one at console.anthropic.com → API Keys. Held in memory for this session only —
-          never saved to disk, never sent anywhere except Anthropic's API.</div>
+        <div class="hint">Create one at → API Keys. Held in memory for this session only —
+          never saved to disk.</div>
       </div>
 
       <div class="upl" id="uTemplate"><div class="row"><div>
@@ -237,7 +237,7 @@ function parseClaudeJSON(text) {
 
 async function callClaude(messages) {
   const key = $("apiKey").value.trim();
-  if (!key) throw new Error("Please paste your Anthropic API key at the top of the intake screen first.");
+  if (!key) throw new Error("Please paste your API key at the top of the intake screen first.");
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
