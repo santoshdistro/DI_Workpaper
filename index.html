@@ -504,8 +504,12 @@ function goStep(n) {
 function setErr(msg) { const b = $("bErr"); b.textContent = msg || ""; b.style.display = msg ? "block" : "none"; }
 function setBusy(msg) {
   const b = $("bBusy"); b.textContent = msg ? "⏳ " + msg : ""; b.style.display = msg ? "block" : "none";
-  ["btnAnalyze", "btnGenerate", "btnSign", "btnDlWp", "btnDlEv", "btnDlRec"].forEach((id) => { const el = $(id); if (el && msg) el.dataset.wasDisabled = el.disabled ? "1" : ""; if (el) el.disabled = !!msg || el.dataset.wasDisabled === "1"; });
-  if (!msg) refreshIntakeButton();
+  ["btnAnalyze", "btnGenerate", "btnSign", "btnAcceptAll", "btnDlWp", "btnDlEv", "btnDlRec"].forEach((id) => { const el = $(id); if (el) el.disabled = !!msg; });
+  if (!msg) {
+    refreshIntakeButton();
+    const decided = Object.keys(S.decisions).length > 0 && Object.values(S.decisions).every((v) => v !== null);
+    $("btnSign").disabled = !decided;
+  }
 }
 
 function refreshIntakeButton() {
